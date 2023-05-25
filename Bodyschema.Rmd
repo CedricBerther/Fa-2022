@@ -12,7 +12,6 @@ output:
 ##  1.1 Load packages
 
 ```{r}
-install.packages("tidyverse") 
 library(tidyverse) 
 
 library(readr)
@@ -25,6 +24,8 @@ library(purrr)
 
 ```{r, warning=FALSE}
 # Specify the directory path
+
+
 
 txt_to_csv <- function(file) {
   data <- readLines(file)
@@ -55,11 +56,296 @@ df <- tibble(files, data) %>%
   select(id, data)
 
 for (i in seq_along(df$data)) {
-  second_row <- df$data[[i]][2, 1]
-  df$id[i] <- second_row
+  df$id[i] <- df$data[[i]][2, 1]
   
   condition <- df$data[[i]][2, 3]
   df$condition[i] <- condition
 }
+
+```
+
+
+##  1.4 data preparation
+
+```{r, warning=FALSE}
+
+df$condition <- strptime(df$condition, format = "%H:%M:%S") # Convert condition to POSIXlt format
+
+df$id <- as.numeric(df$id)
+
+df <- df %>%
+  group_by(id) %>%
+  mutate(condition = rank(condition, ties.method = "min")) 
+
+
+df$condition <- as.integer(df$condition) # Convert ranks to integers
+
+
+df$sequence <- ((as.numeric(as.character(df$id)) - 1) %% 4) + 1
+
+
+```
+
+##  1.5 Change real condition number
+
+```{r, warning=FALSE}
+
+# Loop through each row in the dataframe
+for (i in 1:nrow(df)) {
+  if (df$sequence[i] == 2) {
+    if (df$condition[i] == 2) {
+      df$condition[i] <- 6
+    } else if (df$condition[i] == 1) {
+      df$condition[i] <- 5
+    } else if (df$condition[i] == 3) {
+      df$condition[i] <- 7
+    } else if (df$condition[i] == 4) {
+      df$condition[i] <- 8
+    } 
+  } else if (df$sequence[i] == 3) {
+    if (df$condition[i] == 2) {
+      df$condition[i] <- 6
+    } else if (df$condition[i] == 1) {
+      df$condition[i] <- 5
+    } else if (df$condition[i] == 3) {
+      df$condition[i] <- 7
+    } else if (df$condition[i] == 4) {
+      df$condition[i] <- 8
+    } 
+  } else if (df$sequence[i] == 4) {
+    if (df$condition[i] == 2) {
+      df$condition[i] <- 6
+    } else if (df$condition[i] == 1) {
+      df$condition[i] <- 5
+    } else if (df$condition[i] == 3) {
+      df$condition[i] <- 7
+    } else if (df$condition[i] == 4) {
+      df$condition[i] <- 8
+    } 
+  }
+}
+
+for (i in 1:nrow(df)) {
+  if (df$sequence[i] == 2) {
+    if (df$condition[i] == 6) {
+      df$condition[i] <- 1
+    } else if (df$condition[i] == 5) {
+      df$condition[i] <- 2
+    } else if (df$condition[i] == 7) {
+      df$condition[i] <- 4
+    } else if (df$condition[i] == 8) {
+      df$condition[i] <- 3
+    }
+  } else if (df$sequence[i] == 3) {
+    if (df$condition[i] == 6) {
+      df$condition[i] <- 4
+    } else if (df$condition[i] == 5) {
+      df$condition[i] <- 3
+    } else if (df$condition[i] == 7) {
+      df$condition[i] <- 1
+    } else if (df$condition[i] == 8) {
+      df$condition[i] <- 2
+    }
+  } else if (df$sequence[i] == 4) {
+    if (df$condition[i] == 6) {
+      df$condition[i] <- 3
+    } else if (df$condition[i] == 5) {
+      df$condition[i] <- 4
+    } else if (df$condition[i] == 7) {
+      df$condition[i] <- 2
+    } else if (df$condition[i] == 8) {
+      df$condition[i] <- 1
+    }
+  }
+}
+
+
+df_unnest <- unnest(df)
+
+df_unnest <- rename(df_unnest,trialno = V1,trialtype = V2,x = V3,y = V4, timestamp = V5)
+
+
+df_unnest$x <- as.numeric(df_unnest$x) 
+df_unnest$y <- as.numeric(df_unnest$y) 
+
+```
+
+#  2 Plot
+
+```{r, warning=FALSE}
+
+# Calculate length for condition = 1 with the Euclidean distance 
+df_distance <- df_unnest %>%
+  filter(trialtype %in% c("tip_middle_finger", "wrist", "knuckle_index_finger", "knuckle_small_finger")) %>%
+  group_by(condition) %>%
+  summarise(distance_length = sqrt((x[trialtype == "tip_middle_finger"] - x[trialtype == "wrist"])^2 + (y[trialtype == "tip_middle_finger"] - y[trialtype == "wrist"])^2),
+            distance_width = sqrt((x[trialtype == "knuckle_index_finger"] - x[trialtype == "knuckle_small_finger"])^2 + (y[trialtype == "knuckle_index_finger"] - y[trialtype == "knuckle_small_finger"])^2)) %>%
+  mutate(length_1 = ifelse(condition == 1, distance_length, NA),
+         length_2 = ifelse(condition == 2, distance_length, NA),
+         length_3 = ifelse(condition == 3, distance_length, NA),
+         length_4 = ifelse(condition == 4, distance_length, NA),
+         width_1 = ifelse(condition == 1, distance_width, NA),
+         width_2 = ifelse(condition == 2, distance_width, NA),
+         width_3 = ifelse(condition == 3, distance_width, NA),
+         width_4 = ifelse(condition == 4, distance_width, NA))
+
+
+df_length <- data.frame(
+  df_distance$length_1,
+   df_distance$length_2,
+   df_distance$length_3,
+   df_distance$length_4
+)
+
+df_width <- data.frame(
+  df_distance$width_1,
+   df_distance$width_2,
+   df_distance$width_3,
+   df_distance$width_4
+)
+
+df_length <- tidyr::gather(df_length, key = "column", value = "value")
+df_length <- na.omit(df_length)
+df_length$valueCM <- df_length$value * 0.0264583333
+
+df_length <- df_length %>%
+  mutate(column = case_when(
+    column == "df_distance.length_4" ~ "Caloric Sham",
+    column == "df_distance.length_3" ~ "Caloric",
+    column == "df_distance.length_2" ~ "Platform Sham",
+    column == "df_distance.length_1" ~ "Platform",
+    TRUE ~ column  # Keep the original value if it doesn't match any condition
+  ))
+
+
+ggplot(df_length, aes(x = column, y = valueCM)) +
+  geom_boxplot() +
+  labs(x = "Condition", y = "Length in cm") +
+  ggtitle("Length of hand")+
+  theme_minimal() +  # Use a minimal theme
+  theme(plot.background = element_rect(fill = "white")) 
+
+
+
+df_width <- tidyr::gather(df_width, key = "column", value = "value")
+df_width <- na.omit(df_width)
+df_width$valueCM <- df_width$value * 0.0264583333
+
+df_width <- df_width %>%
+  mutate(column = case_when(
+    column == "df_distance.width_4" ~ "Caloric Sham",
+    column == "df_distance.width_3" ~ "Caloric",
+    column == "df_distance.width_2" ~ "Platform Sham",
+    column == "df_distance.width_1" ~ "Platform",
+    TRUE ~ column  # Keep the original value if it doesn't match any condition
+  ))
+
+
+ggplot(df_width, aes(x = column, y = valueCM)) +
+  geom_boxplot() +
+  labs(x = "Condition", y = "Width in cm") +
+  ggtitle("Width of hand") +
+  theme_minimal() +  # Use a minimal theme
+  theme(plot.background = element_rect(fill = "white")) 
+
+```
+
+#  3 Testing Length
+
+```{r, warning=FALSE}
+
+df_length$column <- as.factor(df_length$column)
+
+model <- aov(value ~ column, data = df_length)
+
+summary(model)
+
+Platform_l <- subset(df_length, column == "Platform")
+Platform_Sham_l <- subset(df_length, column == "Platform Sham")
+Caloric_l <- subset(df_length, column == "Caloric")
+Caloric_Sham_l <- subset(df_length, column == "Caloric Sham")
+
+```
+##  3.1 Platform
+
+```{r, warning=FALSE}
+result <- t.test(Platform_l$value, Platform_Sham_l$value)
+print(result)
+
+```
+
+##  3.2 Testing Caloric
+
+```{r, warning=FALSE}
+
+result <- t.test(Caloric_l$value, Caloric_Sham_l$value)
+print(result)
+
+```
+
+##  3.3 Testing Real
+
+```{r, warning=FALSE}
+
+result <- t.test(Platform_l$value, Caloric_l$value)
+print(result)
+
+```
+
+##  3.4 Testing Sham
+
+```{r, warning=FALSE}
+result <- t.test(Caloric_Sham_l$value, Platform_Sham_l$value)
+print(result)
+
+```
+
+#    4 Testing Width
+
+```{r, warning=FALSE}
+
+df_width$column <- as.factor(df_width$column)
+
+model <- aov(value ~ column, data = df_width)
+
+summary(model)
+
+Platform_w <- subset(df_width, column == "Platform")
+Platform_Sham_w <- subset(df_width, column == "Platform Sham")
+Caloric_w <- subset(df_width, column == "Caloric")
+Caloric_Sham_w <- subset(df_width, column == "Caloric Sham")
+
+```
+##  4.1 Platform
+
+```{r, warning=FALSE}
+result <- t.test(Platform_w$value, Platform_Sham_w$value)
+print(result)
+
+```
+
+##  4.2 Testing Caloric
+
+```{r, warning=FALSE}
+
+result <- t.test(Caloric_w$value, Caloric_Sham_w$value)
+print(result)
+
+```
+
+##  4.3 Testing Real
+
+```{r, warning=FALSE}
+
+result <- t.test(Platform_w$value, Caloric_w$value)
+print(result)
+
+```
+
+##  4.4 Testing Sham
+
+```{r, warning=FALSE}
+result <- t.test(Caloric_Sham_w$value, Platform_Sham_w$value)
+print(result)
 
 ```
