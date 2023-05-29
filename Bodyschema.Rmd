@@ -174,7 +174,7 @@ df_unnest$y <- as.numeric(df_unnest$y)
 
 ```{r, warning=FALSE}
 
-# Calculate length for condition = 1 with the Euclidean distance 
+# Calculate length and width with the Euclidean distance 
 df_distance <- df_unnest %>%
   filter(trialtype %in% c("tip_middle_finger", "wrist", "knuckle_index_finger", "knuckle_small_finger")) %>%
   group_by(condition) %>%
